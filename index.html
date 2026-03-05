@@ -8,54 +8,153 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg-primary: #fafafa;
+            --bg-secondary: #ffffff;
+            --text-primary: #171717;
+            --text-secondary: #737373;
+            --text-tertiary: #a3a3a3;
+            --border-color: #e5e5e5;
+            --footer-text: #d4d4d4;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #171717;
+            --text-primary: #fafafa;
+            --text-secondary: #a3a3a3;
+            --text-tertiary: #737373;
+            --border-color: #262626;
+            --footer-text: #404040;
+        }
+
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+        }
+        
         body {
             font-family: 'Inter', -apple-system, sans-serif;
-            background: #fafafa;
-            color: #171717;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             min-height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
+
+        .theme-toggle {
+            position: fixed;
+            top: 1.5rem;
+            right: 1.5rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.05);
+            border-color: var(--text-tertiary);
+        }
+
+        .theme-toggle svg {
+            width: 20px;
+            height: 20px;
+            color: var(--text-primary);
+            transition: transform 0.3s ease;
+        }
+
+        .theme-toggle:active svg {
+            transform: rotate(180deg);
+        }
+
+        .icon-sun, .icon-moon {
+            display: none;
+        }
+
+        [data-theme="light"] .icon-sun {
+            display: block;
+        }
+
+        [data-theme="dark"] .icon-moon {
+            display: block;
+        }
+
         .container {
             text-align: center;
             max-width: 480px;
             padding: 2rem;
         }
+
         h1 {
             font-size: 2rem;
             font-weight: 600;
             letter-spacing: -0.02em;
             margin-bottom: 0.75rem;
         }
+
         .description {
             font-size: 1rem;
-            color: #737373;
+            color: var(--text-secondary);
             line-height: 1.6;
             margin-bottom: 2rem;
+            transition: color 0.3s ease;
         }
+
         .badge {
             display: inline-flex;
             align-items: center;
             gap: 0.375rem;
             font-size: 0.75rem;
-            color: #a3a3a3;
-            border: 1px solid #e5e5e5;
+            color: var(--text-tertiary);
+            border: 1px solid var(--border-color);
             border-radius: 999px;
             padding: 0.375rem 0.75rem;
+            transition: all 0.3s ease;
         }
-        .badge svg { width: 14px; height: 14px; }
+
+        .badge svg { 
+            width: 14px; 
+            height: 14px; 
+        }
+
         footer {
             position: fixed;
             bottom: 1.5rem;
             font-size: 0.75rem;
-            color: #d4d4d4;
+            color: var(--footer-text);
+            transition: color 0.3s ease;
         }
     </style>
 </head>
 <body>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/>
+            <line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+    </button>
+
     <div class="container">
         <h1>wavelength</h1>
         <p class="description">Ambient sound mixer — lo-fi beats, rain, cafe noise, focus timer.</p>
@@ -68,6 +167,55 @@
             Growing on Bloom
         </span>
     </div>
+
     <footer>Powered by Bloom</footer>
+
+    <script>
+        // Theme management
+        const THEME_KEY = 'wavelength-theme';
+        const themeToggle = document.getElementById('themeToggle');
+        const html = document.documentElement;
+
+        // Get initial theme: localStorage > system preference > light
+        function getInitialTheme() {
+            const saved = localStorage.getItem(THEME_KEY);
+            if (saved) return saved;
+            
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                return 'dark';
+            }
+            
+            return 'light';
+        }
+
+        // Apply theme
+        function setTheme(theme) {
+            html.setAttribute('data-theme', theme);
+            localStorage.setItem(THEME_KEY, theme);
+        }
+
+        // Toggle theme
+        function toggleTheme() {
+            const current = html.getAttribute('data-theme');
+            const next = current === 'light' ? 'dark' : 'light';
+            setTheme(next);
+        }
+
+        // Initialize theme on page load
+        setTheme(getInitialTheme());
+
+        // Add click listener
+        themeToggle.addEventListener('click', toggleTheme);
+
+        // Listen for system theme changes
+        if (window.matchMedia) {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+                // Only update if user hasn't set a preference
+                if (!localStorage.getItem(THEME_KEY)) {
+                    setTheme(e.matches ? 'dark' : 'light');
+                }
+            });
+        }
+    </script>
 </body>
 </html>
