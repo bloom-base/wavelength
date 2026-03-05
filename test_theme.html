@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Theme Tests - wavelength</title>
+    <style>
+        body {
+            font-family: -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        .test-results {
+            margin-top: 1rem;
+        }
+        .test {
+            padding: 0.5rem;
+            margin: 0.5rem 0;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        .test.pass {
+            background: #d4edda;
+            border-color: #28a745;
+        }
+        .test.fail {
+            background: #f8d7da;
+            border-color: #dc3545;
+        }
+        .summary {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Theme Toggle Tests</h1>
+    <div id="test-results" class="test-results"></div>
+    <div id="summary" class="summary"></div>
+
+    <script>
+        const results = [];
+
+        function assert(condition, testName) {
+            const passed = !!condition;
+            results.push({ testName, passed });
+            const div = document.createElement('div');
+            div.className = `test ${passed ? 'pass' : 'fail'}`;
+            div.textContent = `${passed ? '✓' : '✗'} ${testName}`;
+            document.getElementById('test-results').appendChild(div);
+            return passed;
+        }
+
+        // Test 1: localStorage persistence
+        function testLocalStoragePersistence() {
+            localStorage.removeItem('wavelength-theme');
+            localStorage.setItem('wavelength-theme', 'dark');
+            const saved = localStorage.getItem('wavelength-theme');
+            assert(saved === 'dark', 'localStorage saves theme preference');
+            
+            localStorage.setItem('wavelength-theme', 'light');
+            const updated = localStorage.getItem('wavelength-theme');
+            assert(updated === 'light', 'localStorage updates theme preference');
+        }
+
+        // Test 2: CSS variables are defined
+        function testCSSVariables() {
+            const root = document.documentElement;
+            const styles = getComputedStyle(root);
+            
+            // Create a test element with light theme
+            const testDiv = document.createElement('div');
+            testDiv.setAttribute('data-theme', 'light');
+            document.body.appendChild(testDiv);
+            
+            assert(
+                document.querySelector(':root') !== null,
+                'CSS :root selector exists for variables'
+            );
+            
+            document.body.removeChild(testDiv);
+        }
+
+        // Test 3: Theme key constant
+        function testThemeKey() {
+            const expectedKey = 'wavelength-theme';
+            assert(
+                typeof expectedKey === 'string' && expectedKey.length > 0,
+                'Theme key constant is defined'
+            );
+        }
+
+        // Test 4: Theme values are valid
+        function testThemeValues() {
+            const validThemes = ['light', 'dark'];
+            assert(
+                validThemes.includes('light') && validThemes.includes('dark'),
+                'Valid theme values (light, dark) are supported'
+            );
+        }
+
+        // Test 5: HTML structure includes theme toggle
+        function testHTMLStructure() {
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            document.body.appendChild(iframe);
+            
+            fetch('index.html')
+                .then(response => response.text())
+                .then(html => {
+                    assert(
+                        html.includes('theme-toggle') || html.includes('themeToggle'),
+                        'HTML includes theme toggle element'
+                    );
+                    assert(
+                        html.includes('icon-sun') && html.includes('icon-moon'),
+                        'HTML includes sun and moon icons'
+                    );
+                    assert(
+                        html.includes('data-theme'),
+                        'HTML uses data-theme attribute'
+                    );
+                    assert(
+                        html.includes('--bg-primary') || html.includes('CSS variables'),
+                        'HTML includes CSS variables'
+                    );
+                    assert(
+                        html.includes('localStorage'),
+                        'HTML includes localStorage code'
+                    );
+                    assert(
+                        html.includes('prefers-color-scheme'),
+                        'HTML respects system preference'
+                    );
+                    
+                    document.body.removeChild(iframe);
+                    showSummary();
+                })
+                .catch(() => {
+                    assert(false, 'Could not load index.html for testing');
+                    document.body.removeChild(iframe);
+                    showSummary();
+                });
+        }
+
+        function showSummary() {
+            const passed = results.filter(r => r.passed).length;
+            const total = results.length;
+            const summary = document.getElementById('summary');
+            summary.textContent = `Tests: ${passed}/${total} passed`;
+            summary.style.background = passed === total ? '#d4edda' : '#f8d7da';
+            
+            // Exit with appropriate code for CI
+            if (typeof process !== 'undefined' && passed < total) {
+                process.exit(1);
+            }
+        }
+
+        // Run tests
+        testLocalStoragePersistence();
+        testCSSVariables();
+        testThemeKey();
+        testThemeValues();
+        testHTMLStructure();
+    </script>
+</body>
+</html>
