@@ -1,73 +1,903 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>wavelength</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Inter', -apple-system, sans-serif;
-            background: #fafafa;
-            color: #171717;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-        .container {
-            text-align: center;
-            max-width: 480px;
-            padding: 2rem;
-        }
-        h1 {
-            font-size: 2rem;
-            font-weight: 600;
-            letter-spacing: -0.02em;
-            margin-bottom: 0.75rem;
-        }
-        .description {
-            font-size: 1rem;
-            color: #737373;
-            line-height: 1.6;
-            margin-bottom: 2rem;
-        }
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.375rem;
-            font-size: 0.75rem;
-            color: #a3a3a3;
-            border: 1px solid #e5e5e5;
-            border-radius: 999px;
-            padding: 0.375rem 0.75rem;
-        }
-        .badge svg { width: 14px; height: 14px; }
-        footer {
-            position: fixed;
-            bottom: 1.5rem;
-            font-size: 0.75rem;
-            color: #d4d4d4;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>wavelength</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* ── Reset & tokens ───────────────────────────────────────── */
+    :root {
+      --bg:         #fafafa;
+      --surface:    #ffffff;
+      --border:     #e5e5e5;
+      --border-active: #6366f1;
+      --text:       #171717;
+      --muted:      #737373;
+      --accent:     #6366f1;
+      --accent-bg:  #eef2ff;
+    }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ───────────────────────────────────────────────── */
+    header {
+      padding: 1.5rem 2rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+    }
+    header h1 {
+      font-size: 1.125rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    header p {
+      font-size: 0.8125rem;
+      color: var(--muted);
+    }
+
+    /* ── Main layout ─────────────────────────────────────────── */
+    main {
+      max-width: 740px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 3rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+
+    .section-label {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.875rem;
+    }
+
+    /* ── Sound grid ──────────────────────────────────────────── */
+    .sound-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.625rem;
+    }
+    @media (max-width: 500px) {
+      .sound-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* ── Sound card ──────────────────────────────────────────── */
+    .sound-card {
+      position: relative;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1rem 0.875rem;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .sound-card:hover { border-color: #c7d2fe; }
+    .sound-card.active {
+      border-color: var(--border-active);
+      background: var(--accent-bg);
+    }
+
+    /* pulsing indicator on active cards */
+    .sound-card.active::after {
+      content: '';
+      position: absolute;
+      top: 10px; right: 10px;
+      width: 7px; height: 7px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: ping 2.4s ease-in-out infinite;
+    }
+    @keyframes ping {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.45; transform: scale(0.65); }
+    }
+
+    .sound-card .emoji {
+      font-size: 1.375rem;
+      display: block;
+      margin-bottom: 0.375rem;
+    }
+    .sound-card .sound-name {
+      font-size: 0.8125rem;
+      font-weight: 500;
+      margin-bottom: 0.75rem;
+      color: var(--text);
+    }
+
+    /* volume slider row */
+    .vol-row {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+    .vol-icon { width: 13px; height: 13px; flex-shrink: 0; color: var(--muted); }
+
+    input[type="range"].vol-slider {
+      flex: 1;
+      height: 3px;
+      appearance: none;
+      -webkit-appearance: none;
+      background: var(--border);
+      border-radius: 99px;
+      outline: none;
+      cursor: pointer;
+      opacity: 0.45;
+      transition: opacity 0.15s;
+    }
+    .sound-card.active input[type="range"].vol-slider {
+      background: #c7d2fe;
+      opacity: 1;
+    }
+    input[type="range"].vol-slider::-webkit-slider-thumb {
+      appearance: none; -webkit-appearance: none;
+      width: 13px; height: 13px;
+      border-radius: 50%;
+      background: var(--text);
+      cursor: grab;
+    }
+    .sound-card.active input[type="range"].vol-slider::-webkit-slider-thumb {
+      background: var(--accent);
+    }
+    input[type="range"].vol-slider::-moz-range-thumb {
+      width: 13px; height: 13px;
+      border: none;
+      border-radius: 50%;
+      background: var(--text);
+      cursor: grab;
+    }
+    .sound-card.active input[type="range"].vol-slider::-moz-range-thumb {
+      background: var(--accent);
+    }
+
+    /* ── EQ section ─────────────────────────────────────────── */
+    .eq-card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem 1.5rem 1.375rem;
+    }
+
+    .eq-bands {
+      display: flex;
+      justify-content: space-evenly;
+      align-items: flex-start;
+      padding-top: 0.25rem;
+    }
+
+    .eq-band {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .eq-value {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--accent);
+      min-width: 44px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.01em;
+    }
+
+    /* Vertical slider — uses writing-mode; works in all modern browsers */
+    .eq-slider-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 140px;
+    }
+
+    /* center-line at 0 dB */
+    .eq-slider-wrap::before {
+      content: '';
+      position: absolute;
+      left: 4px; right: 4px;
+      top: 50%;
+      height: 1px;
+      background: #d4d4d4;
+      pointer-events: none;
+    }
+
+    input[type="range"].eq-slider {
+      writing-mode: vertical-lr;
+      direction: rtl;          /* puts max (+12) at top, min (-12) at bottom */
+      width: 36px;
+      height: 140px;
+      appearance: none;
+      -webkit-appearance: slider-vertical;
+      background: transparent;
+      outline: none;
+      cursor: ns-resize;
+      padding: 0;
+    }
+
+    /* Track */
+    input[type="range"].eq-slider::-webkit-slider-runnable-track {
+      width: 4px;
+      background: var(--border);
+      border-radius: 99px;
+    }
+    input[type="range"].eq-slider::-moz-range-track {
+      width: 4px;
+      background: var(--border);
+      border-radius: 99px;
+    }
+
+    /* Thumb */
+    input[type="range"].eq-slider::-webkit-slider-thumb {
+      appearance: none; -webkit-appearance: none;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: var(--text);
+      border: 2.5px solid var(--surface);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+      cursor: grab;
+      margin-left: -9px; /* horizontally center on 4px track */
+      transition: background 0.1s;
+    }
+    input[type="range"].eq-slider:active::-webkit-slider-thumb {
+      background: var(--accent);
+      cursor: grabbing;
+    }
+    input[type="range"].eq-slider::-moz-range-thumb {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      border: 2.5px solid var(--surface);
+      background: var(--text);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+      cursor: grab;
+    }
+    input[type="range"].eq-slider:active::-moz-range-thumb {
+      background: var(--accent);
+    }
+
+    .eq-band-name {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+
+    /* ── Footer ─────────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 0 0 2rem;
+      font-size: 0.75rem;
+      color: #d4d4d4;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>wavelength</h1>
-        <p class="description">Ambient sound mixer — lo-fi beats, rain, cafe noise, focus timer.</p>
-        <span class="badge">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M12 2a10 10 0 0 1 0 20 10 10 0 0 1 0-20"/>
-                <path d="M2 12h4M18 12h4"/>
-            </svg>
-            Growing on Bloom
-        </span>
+
+<header>
+  <h1>wavelength</h1>
+  <p>Your sonic workspace</p>
+</header>
+
+<main>
+  <!-- ── Sounds ──────────────────────────────────────────────── -->
+  <section aria-label="Sound sources">
+    <p class="section-label">Sounds</p>
+    <div class="sound-grid" id="soundGrid"></div>
+  </section>
+
+  <!-- ── 3-Band EQ ───────────────────────────────────────────── -->
+  <section class="eq-card" aria-label="Equalizer">
+    <p class="section-label">Equalizer</p>
+    <div class="eq-bands">
+
+      <div class="eq-band">
+        <output class="eq-value" id="bassValue">0 dB</output>
+        <div class="eq-slider-wrap">
+          <input type="range" class="eq-slider" id="bassSlider"
+                 min="-12" max="12" step="0.5" value="0"
+                 aria-label="Bass" aria-valuetext="0 dB">
+        </div>
+        <label class="eq-band-name" for="bassSlider">Bass</label>
+      </div>
+
+      <div class="eq-band">
+        <output class="eq-value" id="midValue">0 dB</output>
+        <div class="eq-slider-wrap">
+          <input type="range" class="eq-slider" id="midSlider"
+                 min="-12" max="12" step="0.5" value="0"
+                 aria-label="Mid" aria-valuetext="0 dB">
+        </div>
+        <label class="eq-band-name" for="midSlider">Mid</label>
+      </div>
+
+      <div class="eq-band">
+        <output class="eq-value" id="trebleValue">0 dB</output>
+        <div class="eq-slider-wrap">
+          <input type="range" class="eq-slider" id="trebleSlider"
+                 min="-12" max="12" step="0.5" value="0"
+                 aria-label="Treble" aria-valuetext="0 dB">
+        </div>
+        <label class="eq-band-name" for="trebleSlider">Treble</label>
+      </div>
+
     </div>
-    <footer>Powered by Bloom</footer>
+  </section>
+</main>
+
+<footer>Powered by Bloom</footer>
+
+<script>
+/* ================================================================
+   WAVELENGTH — Ambient sound mixer
+   Signal chain:
+     [source] → [sound filters] → [soundGain] → [mixBus]
+                                                     ↓
+     [destination] ← [compressor] ← [treble] ← [mid] ← [bass]
+================================================================ */
+
+'use strict';
+
+// ── Config ───────────────────────────────────────────────────────
+const SOUNDS_CONFIG = [
+  { id: 'rain',  emoji: '🌧',  name: 'Rain'  },
+  { id: 'ocean', emoji: '🌊',  name: 'Ocean' },
+  { id: 'wind',  emoji: '💨',  name: 'Wind'  },
+  { id: 'cafe',  emoji: '☕',  name: 'Cafe'  },
+  { id: 'lofi',  emoji: '🎵',  name: 'Lo-fi' },
+  { id: 'fire',  emoji: '🔥',  name: 'Fire'  },
+];
+
+const STORAGE_KEY = 'wavelength_v1';
+
+// EQ time-constant for smooth transitions (seconds)
+const EQ_TC = 0.04;
+
+// EQ band definitions — single source of truth for filter setup, UI, and updates
+const EQ_BANDS = [
+  { id: 'bass',   label: 'Bass',   type: 'lowshelf',  frequency: 100,  Q: null },
+  { id: 'mid',    label: 'Mid',    type: 'peaking',   frequency: 1000, Q: 1.0  },
+  { id: 'treble', label: 'Treble', type: 'highshelf', frequency: 8000, Q: null },
+];
+
+// ── State ────────────────────────────────────────────────────────
+function defaultState() {
+  return {
+    eq:     Object.fromEntries(EQ_BANDS.map(b => [b.id, 0])),
+    sounds: Object.fromEntries(SOUNDS_CONFIG.map(s => [s.id, { volume: 0.7 }])),
+  };
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      const d = defaultState();
+      return {
+        eq:     { ...d.eq,     ...p.eq },
+        sounds: { ...d.sounds, ...p.sounds },
+      };
+    }
+  } catch (_) {}
+  return defaultState();
+}
+
+// Debounced — avoids hammering localStorage on every slider tick
+let _saveTimer = null;
+function saveState() {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
+  }, 500);
+}
+
+let state = loadState();
+
+// ── Audio context & master nodes ─────────────────────────────────
+let ctx         = null;
+let mixBus      = null;
+let noiseBuffer = null;   // shared 4-second white-noise buffer, looped by ambient sources
+let snareBuf    = null;   // cached drum sample buffers — generated once at initAudio
+let hihatBuf    = null;
+const eqFilters = {};     // { bass, mid, treble } → BiquadFilterNode, populated in initAudio
+
+// Per-sound active instances: id → { setVolume(v), stop() }
+const activeSounds = {};
+
+function initAudio() {
+  if (ctx) {
+    if (ctx.state === 'suspended') ctx.resume();
+    return;
+  }
+
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+  // ── Shared noise buffer (4 s white noise, looped by sources) ──
+  const rate = ctx.sampleRate;
+  noiseBuffer = ctx.createBuffer(1, rate * 4, rate);
+  const nd = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+
+  // ── Drum sample buffers (cached — reused on every lofi restart) ──
+  snareBuf = makeNoiseBuffer(0.20);
+  hihatBuf = makeNoiseBuffer(0.10);
+
+  // ── Mix bus → EQ chain → compressor → destination ────────────
+  mixBus = ctx.createGain();
+  mixBus.gain.value = 0.85;
+
+  // Build EQ filter chain from EQ_BANDS config
+  const filterNodes = EQ_BANDS.map(band => {
+    const f = ctx.createBiquadFilter();
+    f.type = band.type;
+    f.frequency.value = band.frequency;
+    if (band.Q !== null) f.Q.value = band.Q;
+    f.gain.value = state.eq[band.id] || 0;
+    eqFilters[band.id] = f;
+    return f;
+  });
+
+  // Limiter — prevents clipping when multiple sources play at once
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -18;
+  limiter.knee.value      = 12;
+  limiter.ratio.value     = 20;
+  limiter.attack.value    = 0.002;
+  limiter.release.value   = 0.15;
+
+  // Connect: mixBus → bass → mid → treble → limiter → destination
+  mixBus.connect(filterNodes[0]);
+  filterNodes.forEach((f, i) => { if (filterNodes[i + 1]) f.connect(filterNodes[i + 1]); });
+  filterNodes[filterNodes.length - 1].connect(limiter);
+  limiter.connect(ctx.destination);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+
+/** Make a short noise AudioBuffer (for drum hits). */
+function makeNoiseBuffer(durationSec) {
+  const len = Math.ceil(ctx.sampleRate * durationSec);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d   = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  return buf;
+}
+
+/** Create a looping white-noise source through a series of filter configs,
+ *  returning { source, output } where output is the last audio node. */
+function noiseChain(filterConfigs) {
+  const source = ctx.createBufferSource();
+  source.buffer = noiseBuffer;
+  source.loop   = true;
+
+  let node = source;
+  for (const fc of filterConfigs) {
+    const f = ctx.createBiquadFilter();
+    f.type            = fc.type;
+    f.frequency.value = fc.frequency;
+    if (fc.Q    !== undefined) f.Q.value    = fc.Q;
+    if (fc.gain !== undefined) f.gain.value = fc.gain;
+    node.connect(f);
+    node = f;
+  }
+  return { source, output: node };
+}
+
+/** Create a gain node connected to mixBus, starting silent. */
+function makeSoundGain() {
+  const g = ctx.createGain();
+  g.gain.value = 0;
+  g.connect(mixBus);
+  return g;
+}
+
+/** Smoothly ramp an AudioParam to `value` (setTargetAtTime shorthand). */
+function smoothGain(param, value, tc) {
+  param.setTargetAtTime(value, ctx.currentTime, tc != null ? tc : EQ_TC);
+}
+
+/** Stop a list of stoppable audio nodes after `delayMs` ms, ignoring errors. */
+function stopNodes(nodes, delayMs) {
+  setTimeout(() => {
+    nodes.forEach(n => { try { n.stop(); } catch (_) {} });
+  }, delayMs);
+}
+
+/** Schedule an LFO (oscillator) whose output modulates an AudioParam.
+ *  Returns { lfo, depthGain } so callers can update depth and stop. */
+function makeLFO(rate, type, targetParam) {
+  const lfo       = ctx.createOscillator();
+  lfo.type        = type || 'sine';
+  lfo.frequency.value = rate;
+
+  const depthGain = ctx.createGain();
+  depthGain.gain.value = 0;   // caller sets depth via setVolume
+
+  lfo.connect(depthGain);
+  depthGain.connect(targetParam);
+  lfo.start();
+  return { lfo, depthGain };
+}
+
+// ── Sound creators ────────────────────────────────────────────────
+
+function startRain() {
+  const sg = makeSoundGain();
+
+  // Layer 1: broad rain rush (lowpass)
+  const { source: s1, output: o1 } = noiseChain([
+    { type: 'lowpass', frequency: 2400, Q: 0.8 },
+  ]);
+  o1.connect(sg);
+  s1.start();
+
+  // Layer 2: high splash detail (bandpass)
+  const { source: s2, output: o2 } = noiseChain([
+    { type: 'bandpass', frequency: 4500, Q: 2 },
+  ]);
+  const splashGain = ctx.createGain();
+  splashGain.gain.value = 0.28;
+  o2.connect(splashGain);
+  splashGain.connect(sg);
+  s2.start();
+
+  function setVolume(v) {
+    smoothGain(sg.gain, v * 0.75);
+  }
+  function stop() {
+    smoothGain(sg.gain, 0, 0.25);
+    stopNodes([s1, s2], 800);
+  }
+  return { setVolume, stop };
+}
+
+function startOcean() {
+  const sg = makeSoundGain();
+
+  const { source, output } = noiseChain([
+    { type: 'bandpass', frequency: 360, Q: 1.4 },
+  ]);
+  output.connect(sg);
+  source.start();
+
+  // Slow wave LFO modulates sg.gain — oscillates between ~0.25v and ~0.95v
+  const { lfo, depthGain } = makeLFO(0.08, 'sine', sg.gain);
+
+  function setVolume(v) {
+    smoothGain(sg.gain, v * 0.60);
+    smoothGain(depthGain.gain, v * 0.35);
+  }
+  function stop() {
+    smoothGain(sg.gain, 0, 0.4);
+    smoothGain(depthGain.gain, 0, 0.4);
+    stopNodes([source, lfo], 1200);
+  }
+  return { setVolume, stop };
+}
+
+function startWind() {
+  const sg = makeSoundGain();
+
+  const { source, output } = noiseChain([
+    { type: 'bandpass', frequency: 750, Q: 0.6 },
+  ]);
+  output.connect(sg);
+  source.start();
+
+  // Gust LFO
+  const { lfo, depthGain } = makeLFO(0.18, 'sine', sg.gain);
+
+  function setVolume(v) {
+    smoothGain(sg.gain, v * 0.65);
+    smoothGain(depthGain.gain, v * 0.28);
+  }
+  function stop() {
+    smoothGain(sg.gain, 0, 0.5);
+    smoothGain(depthGain.gain, 0, 0.5);
+    stopNodes([source, lfo], 1500);
+  }
+  return { setVolume, stop };
+}
+
+function startCafe() {
+  const sg = makeSoundGain();
+
+  // Brown-ish noise: lowpass + mid presence boost
+  const { source, output } = noiseChain([
+    { type: 'lowpass',  frequency: 3200, Q: 0.5 },
+    { type: 'peaking',  frequency: 900,  Q: 1.2, gain: 5 },
+  ]);
+  output.connect(sg);
+  source.start();
+
+  function setVolume(v) { smoothGain(sg.gain, v * 0.55); }
+  function stop() {
+    smoothGain(sg.gain, 0, 0.25);
+    stopNodes([source], 800);
+  }
+  return { setVolume, stop };
+}
+
+function startFire() {
+  const sg = makeSoundGain();
+
+  // Warm low-end rumble
+  const { source: s1, output: o1 } = noiseChain([
+    { type: 'lowpass', frequency: 350, Q: 0.7 },
+  ]);
+  o1.connect(sg);
+  s1.start();
+
+  // Mid crackle layer
+  const { source: s2, output: o2 } = noiseChain([
+    { type: 'bandpass', frequency: 1400, Q: 2.5 },
+  ]);
+  const crackleGain = ctx.createGain();
+  crackleGain.gain.value = 0;
+  o2.connect(crackleGain);
+  crackleGain.connect(sg);
+  s2.start();
+
+  // Sawtooth LFO → crackle gain (irregular popping character)
+  const { lfo, depthGain } = makeLFO(4.3, 'sawtooth', crackleGain.gain);
+
+  function setVolume(v) {
+    smoothGain(sg.gain, v * 0.55);
+    smoothGain(depthGain.gain, v * 0.18);
+  }
+  function stop() {
+    smoothGain(sg.gain, 0, 0.3);
+    smoothGain(depthGain.gain, 0, 0.3);
+    stopNodes([s1, s2, lfo], 900);
+  }
+  return { setVolume, stop };
+}
+
+function startLofi() {
+  const mainGain = makeSoundGain();
+  const bpm = 88;
+  const stepSec = 60 / bpm / 4; // 16th-note duration
+
+  // Beat patterns (16 steps)
+  const kick  = [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0];
+  const snare = [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,1];
+  const hihat = [1,0,1,0, 1,0,1,1, 1,0,1,0, 1,0,1,0];
+
+  // Cm7 pad: C3 · Eb3 · G3 · Bb3
+  const padFreqs = [130.81, 155.56, 196.00, 233.08];
+  const padBus   = ctx.createGain();
+  padBus.gain.value = 0;
+  padBus.connect(mainGain);
+
+  const padOscs = padFreqs.map(freq => {
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.value  = freq;
+    o.detune.value     = (Math.random() - 0.5) * 10;
+    o.connect(padBus);
+    o.start();
+    return o;
+  });
+
+  // ── Drum schedulers ──
+  function schedKick(t) {
+    const osc = ctx.createOscillator();
+    const env = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(175, t);
+    osc.frequency.exponentialRampToValueAtTime(28, t + 0.38);
+    env.gain.setValueAtTime(1.1, t);
+    env.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+    osc.connect(env);
+    env.connect(mainGain);
+    osc.start(t); osc.stop(t + 0.4);
+  }
+
+  function schedSnare(t) {
+    // noise burst
+    const src = ctx.createBufferSource();
+    src.buffer = snareBuf;
+    const filt = ctx.createBiquadFilter();
+    filt.type = 'bandpass'; filt.frequency.value = 2200;
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.75, t);
+    env.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+    src.connect(filt); filt.connect(env); env.connect(mainGain);
+    src.start(t); src.stop(t + 0.13);
+
+    // body tone
+    const osc = ctx.createOscillator();
+    const oenv = ctx.createGain();
+    osc.frequency.value = 195;
+    oenv.gain.setValueAtTime(0.45, t);
+    oenv.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+    osc.connect(oenv); oenv.connect(mainGain);
+    osc.start(t); osc.stop(t + 0.07);
+  }
+
+  function schedHihat(t, open) {
+    const src = ctx.createBufferSource();
+    src.buffer = hihatBuf;
+    const filt = ctx.createBiquadFilter();
+    filt.type = 'highpass'; filt.frequency.value = 9000;
+    const env = ctx.createGain();
+    const dur = open ? 0.09 : 0.028;
+    env.gain.setValueAtTime(0.22, t);
+    env.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(filt); filt.connect(env); env.connect(mainGain);
+    src.start(t); src.stop(t + dur);
+  }
+
+  // ── Scheduler loop ──
+  let step     = 0;
+  let nextTime = ctx.currentTime + 0.05;
+  let running  = true;
+  let timer    = null;
+
+  function scheduler() {
+    while (nextTime < ctx.currentTime + 0.15) {
+      const s = step % 16;
+      if (kick[s])  schedKick(nextTime);
+      if (snare[s]) schedSnare(nextTime);
+      if (hihat[s]) schedHihat(nextTime, s === 7 || s === 15);
+      step++;
+      nextTime += stepSec;
+    }
+    if (running) timer = setTimeout(scheduler, 25);
+  }
+  scheduler();
+
+  function setVolume(v) {
+    smoothGain(mainGain.gain, v * 0.38);
+    smoothGain(padBus.gain, v * 0.10);
+  }
+  function stop() {
+    running = false;
+    clearTimeout(timer);
+    smoothGain(mainGain.gain, 0, 0.25);
+    smoothGain(padBus.gain, 0, 0.25);
+    stopNodes(padOscs, 750);
+  }
+  return { setVolume, stop };
+}
+
+// Map id → starter function
+const starters = {
+  rain:  startRain,
+  ocean: startOcean,
+  wind:  startWind,
+  cafe:  startCafe,
+  lofi:  startLofi,
+  fire:  startFire,
+};
+
+// ── Sound management ──────────────────────────────────────────────
+
+function toggleSound(id, cardEl) {
+  initAudio();
+
+  if (activeSounds[id]) {
+    activeSounds[id].stop();
+    delete activeSounds[id];
+    cardEl.classList.remove('active');
+  } else {
+    const inst = starters[id]();
+    activeSounds[id] = inst;
+    cardEl.classList.add('active');
+    inst.setVolume(state.sounds[id].volume);
+  }
+  saveState();
+}
+
+function setVolume(id, vol) {
+  state.sounds[id].volume = vol;
+  saveState();
+  if (activeSounds[id]) activeSounds[id].setVolume(vol);
+}
+
+// ── EQ management ────────────────────────────────────────────────
+
+function formatDB(val) {
+  if (Math.abs(val) < 0.001) return '0 dB';
+  return (val > 0 ? '+' : '') + val.toFixed(1) + ' dB';
+}
+
+function applyEQ(band, value) {
+  state.eq[band] = value;
+  saveState();
+
+  // Update display
+  document.getElementById(band + 'Value').textContent = formatDB(value);
+
+  // Update AudioParam with smooth transition
+  if (ctx && eqFilters[band]) smoothGain(eqFilters[band].gain, value);
+}
+
+// ── UI rendering ─────────────────────────────────────────────────
+
+function renderSounds() {
+  const grid = document.getElementById('soundGrid');
+
+  SOUNDS_CONFIG.forEach(cfg => {
+    const s    = state.sounds[cfg.id];
+    const card = document.createElement('div');
+    card.className   = 'sound-card';
+    card.dataset.id  = cfg.id;
+    card.innerHTML   = `
+      <span class="emoji">${cfg.emoji}</span>
+      <div class="sound-name">${cfg.name}</div>
+      <div class="vol-row">
+        <svg class="vol-icon" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+        </svg>
+        <input type="range" class="vol-slider"
+               min="0" max="1" step="0.01" value="${s.volume}"
+               aria-label="${cfg.name} volume"
+               data-id="${cfg.id}">
+      </div>
+    `;
+
+    // Toggle on card click (skip if user clicked the slider itself)
+    card.addEventListener('click', e => {
+      if (e.target.classList.contains('vol-slider')) return;
+      toggleSound(cfg.id, card);
+    });
+
+    // Volume slider — stop propagation so it doesn't also fire the toggle
+    const slider = card.querySelector('.vol-slider');
+    slider.addEventListener('pointerdown', e => e.stopPropagation());
+    slider.addEventListener('input', e => {
+      setVolume(cfg.id, parseFloat(e.target.value));
+    });
+
+    grid.appendChild(card);
+  });
+}
+
+function renderEQ() {
+  ['bass', 'mid', 'treble'].forEach(band => {
+    const slider  = document.getElementById(band + 'Slider');
+    const display = document.getElementById(band + 'Value');
+
+    // Restore persisted value
+    slider.value        = state.eq[band];
+    display.textContent = formatDB(state.eq[band]);
+
+    slider.addEventListener('input', e => {
+      applyEQ(band, parseFloat(e.target.value));
+    });
+  });
+}
+
+// ── Bootstrap ────────────────────────────────────────────────────
+renderSounds();
+renderEQ();
+
+// Resume AudioContext on any user interaction (mobile browsers require this)
+document.addEventListener('pointerdown', () => {
+  if (ctx && ctx.state === 'suspended') ctx.resume();
+}, { passive: true });
+</script>
 </body>
 </html>
