@@ -8,6 +8,18 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
+    /* ── Ambient sky gradient custom properties (enables CSS transitions) ── */
+    @property --sky-a {
+      syntax: '<color>';
+      inherits: false;
+      initial-value: #f0f1f8;
+    }
+    @property --sky-b {
+      syntax: '<color>';
+      inherits: false;
+      initial-value: #e8eaf6;
+    }
+
     /* ── Reset & tokens ───────────────────────────────────────── */
     :root {
       --bg:         #fafafa;
@@ -20,11 +32,30 @@
       --accent-bg:  #eef2ff;
     }
 
+    /* ── Ambient sky gradient layer ──────────────────────────── */
+    /*
+     * A fixed full-viewport layer rendered behind all UI. It displays a
+     * soft two-stop gradient whose colors are driven by the current hour
+     * via JS. The @property declarations above let the browser interpolate
+     * the custom color values, so the background transitions smoothly
+     * rather than snapping. Cards use opaque --surface, so readability is
+     * unaffected; only the "breathing room" between cards picks up the hue.
+     */
+    #ambient-bg {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background: linear-gradient(160deg, var(--sky-a) 0%, var(--sky-b) 100%);
+      transition: --sky-a 90s ease-in-out, --sky-b 90s ease-in-out;
+      pointer-events: none;
+      will-change: --sky-a, --sky-b;
+    }
+
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       font-family: 'Inter', -apple-system, sans-serif;
-      background: var(--bg);
+      background: transparent; /* #ambient-bg handles the background */
       color: var(--text);
       min-height: 100vh;
     }
@@ -290,6 +321,9 @@
   </style>
 </head>
 <body>
+
+<!-- Ambient background gradient — positioned behind all content via z-index: -1 -->
+<div id="ambient-bg" aria-hidden="true"></div>
 
 <header>
   <h1>wavelength</h1>
@@ -889,6 +923,91 @@ function renderEQ() {
     });
   });
 }
+
+// ── Ambient sky gradient ──────────────────────────────────────────
+//
+// Palette keyframes keyed by hour (0–24).  Colors are very light / low-
+// saturation so they stay behind the white UI cards without affecting
+// text contrast.  The gradient shifts from cool indigo at night → warm
+// peach at dawn → golden cream in the morning → clear sky blue at noon
+// → golden amber in the late afternoon → rose-lavender at sunset →
+// back to deep indigo through the evening.
+//
+// JS interpolates between adjacent keyframes every minute; the CSS
+// @property transition (90 s) handles the actual smooth animation so
+// there is never a visual jump between updates.
+//
+// Hook for future Pomodoro integration:
+//   Call `skySetOffset(minutes)` to nudge the effective hour forward,
+//   making the gradient "fast-forward" through later-in-the-day palettes
+//   as a long focus session progresses.
+
+const SKY_FRAMES = [
+  // { h: hour,  a: [r,g,b] top of gradient,  b: [r,g,b] bottom }
+  { h:  0, a: [240, 241, 248], b: [228, 232, 246] }, // midnight — cool indigo
+  { h:  4, a: [232, 234, 246], b: [218, 222, 244] }, // deep night — deeper indigo
+  { h:  5, a: [242, 232, 248], b: [238, 218, 244] }, // pre-dawn — soft violet
+  { h:  6, a: [253, 238, 242], b: [252, 222, 234] }, // dawn — rose blush
+  { h:  7, a: [255, 248, 234], b: [254, 236, 206] }, // sunrise — warm peach-gold
+  { h:  9, a: [255, 252, 238], b: [254, 246, 216] }, // morning — golden cream
+  { h: 12, a: [240, 249, 255], b: [222, 240, 254] }, // noon — clear sky
+  { h: 15, a: [238, 248, 255], b: [218, 238, 254] }, // afternoon — sky blue
+  { h: 17, a: [255, 249, 226], b: [255, 238, 200] }, // golden hour — amber
+  { h: 18, a: [253, 230, 238], b: [248, 216, 246] }, // sunset — rose-pink
+  { h: 20, a: [234, 228, 250], b: [222, 218, 246] }, // dusk — soft lavender
+  { h: 22, a: [236, 237, 248], b: [224, 228, 246] }, // evening — cool purple
+  { h: 24, a: [240, 241, 248], b: [228, 232, 246] }, // wrap → midnight
+];
+
+// Optional hour offset, e.g. set by a Pomodoro timer to shift the palette.
+let _skyHourOffset = 0;
+
+/** Nudge the sky gradient by `hours` (fractional) beyond the real time.
+ *  Positive values move toward "later in the day" palettes. */
+function skySetOffset(hours) {
+  _skyHourOffset = hours;
+  updateSkyGradient();
+}
+
+/** Linear interpolation between two [r, g, b] triples. */
+function lerpRGB(a, b, t) {
+  return [
+    Math.round(a[0] + (b[0] - a[0]) * t),
+    Math.round(a[1] + (b[1] - a[1]) * t),
+    Math.round(a[2] + (b[2] - a[2]) * t),
+  ];
+}
+
+function updateSkyGradient() {
+  const now = new Date();
+  // Fractional hour in [0, 24), clamped to valid range after offset
+  let fh = (now.getHours() + now.getMinutes() / 60 + _skyHourOffset) % 24;
+  if (fh < 0) fh += 24;
+
+  // Find the two surrounding keyframes
+  let lo = SKY_FRAMES[SKY_FRAMES.length - 2];
+  let hi = SKY_FRAMES[SKY_FRAMES.length - 1];
+  for (let i = 0; i < SKY_FRAMES.length - 1; i++) {
+    if (fh >= SKY_FRAMES[i].h && fh < SKY_FRAMES[i + 1].h) {
+      lo = SKY_FRAMES[i];
+      hi = SKY_FRAMES[i + 1];
+      break;
+    }
+  }
+
+  const t  = (fh - lo.h) / (hi.h - lo.h);
+  const ca = lerpRGB(lo.a, hi.a, t);
+  const cb = lerpRGB(lo.b, hi.b, t);
+
+  const root = document.documentElement;
+  root.style.setProperty('--sky-a', `rgb(${ca})`);
+  root.style.setProperty('--sky-b', `rgb(${cb})`);
+}
+
+// Set immediately so there's no flash of the CSS initial-value.
+updateSkyGradient();
+// Re-evaluate every 60 s; the 90 s CSS transition handles smooth blending.
+setInterval(updateSkyGradient, 60_000);
 
 // ── Bootstrap ────────────────────────────────────────────────────
 renderSounds();
