@@ -140,6 +140,35 @@
       50%       { opacity: 0.45; transform: scale(0.65); }
     }
 
+    /* ── Hover tooltip ─────────────────────────────────────────── */
+    .sound-card::before {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%) translateY(4px);
+      padding: 0.375rem 0.625rem;
+      background: var(--text);
+      color: var(--surface);
+      font-size: 0.6875rem;
+      font-weight: 500;
+      line-height: 1.3;
+      white-space: nowrap;
+      border-radius: 6px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      z-index: 10;
+    }
+    .sound-card:hover::before {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    /* Hide tooltip on touch devices to avoid sticky hover states */
+    @media (hover: none) {
+      .sound-card::before { display: none; }
+    }
+
     .sound-card .emoji {
       font-size: 1.375rem;
       display: block;
@@ -391,12 +420,12 @@
 
 // ── Config ───────────────────────────────────────────────────────
 const SOUNDS_CONFIG = [
-  { id: 'rain',  emoji: '🌧',  name: 'Rain'  },
-  { id: 'ocean', emoji: '🌊',  name: 'Ocean' },
-  { id: 'wind',  emoji: '💨',  name: 'Wind'  },
-  { id: 'cafe',  emoji: '☕',  name: 'Cafe'  },
-  { id: 'lofi',  emoji: '🎵',  name: 'Lo-fi' },
-  { id: 'fire',  emoji: '🔥',  name: 'Fire'  },
+  { id: 'rain',  emoji: '🌧',  name: 'Rain',  desc: 'Gentle rain shower with soft splashes' },
+  { id: 'ocean', emoji: '🌊',  name: 'Ocean', desc: 'Rolling ocean waves with slow tide'     },
+  { id: 'wind',  emoji: '💨',  name: 'Wind',  desc: 'Breezy gusts through open air'          },
+  { id: 'cafe',  emoji: '☕',  name: 'Cafe',  desc: 'Warm coffee shop murmur'                },
+  { id: 'lofi',  emoji: '🎵',  name: 'Lo-fi', desc: 'Chill lo-fi beats with a mellow pad'    },
+  { id: 'fire',  emoji: '🔥',  name: 'Fire',  desc: 'Crackling campfire with deep warmth'     },
 ];
 
 const STORAGE_KEY = 'wavelength_v1';
@@ -873,8 +902,10 @@ function renderSounds() {
   SOUNDS_CONFIG.forEach(cfg => {
     const s    = state.sounds[cfg.id];
     const card = document.createElement('div');
-    card.className   = 'sound-card';
-    card.dataset.id  = cfg.id;
+    card.className      = 'sound-card';
+    card.dataset.id     = cfg.id;
+    card.dataset.sound   = cfg.name;
+    card.dataset.tooltip = cfg.desc;
     card.innerHTML   = `
       <span class="emoji">${cfg.emoji}</span>
       <div class="sound-name">${cfg.name}</div>
