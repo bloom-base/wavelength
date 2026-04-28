@@ -340,6 +340,72 @@
       letter-spacing: 0.07em;
     }
 
+    /* ── Mood filter bar ──────────────────────────────────────── */
+    .mood-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.375rem;
+      margin-bottom: 0.875rem;
+    }
+    .mood-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.3rem 0.75rem;
+      border: 1.5px solid var(--border);
+      border-radius: 99px;
+      background: var(--surface);
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s, color 0.15s, transform 0.1s;
+      user-select: none;
+      -webkit-user-select: none;
+      white-space: nowrap;
+    }
+    .mood-pill:hover {
+      border-color: #c7d2fe;
+      color: var(--text);
+    }
+    .mood-pill:active {
+      transform: scale(0.96);
+    }
+    .mood-pill.active {
+      border-color: var(--accent);
+      background: var(--accent-bg);
+      color: var(--accent);
+    }
+    .mood-pill .pill-emoji {
+      font-size: 0.8125rem;
+      line-height: 1;
+    }
+    .surprise-pill {
+      border-style: dashed;
+    }
+    .surprise-pill:hover {
+      border-color: #c7d2fe;
+      border-style: solid;
+    }
+    .surprise-pill.active {
+      border-style: solid;
+    }
+
+    /* Filtering animation for sound cards */
+    .sound-card.mood-hidden {
+      opacity: 0;
+      transform: scale(0.92);
+      pointer-events: none;
+      position: absolute;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+      padding: 0;
+      margin: 0;
+      border: 0;
+    }
+
     /* ── Footer ─────────────────────────────────────────────── */
     footer {
       text-align: center;
@@ -363,6 +429,7 @@
   <!-- ── Sounds ──────────────────────────────────────────────── -->
   <section aria-label="Sound sources">
     <p class="section-label">Sounds</p>
+    <div class="mood-bar" id="moodBar" role="toolbar" aria-label="Filter by mood"></div>
     <div class="sound-grid" id="soundGrid"></div>
   </section>
 
@@ -420,13 +487,31 @@
 
 // ── Config ───────────────────────────────────────────────────────
 const SOUNDS_CONFIG = [
-  { id: 'rain',  emoji: '🌧',  name: 'Rain',  desc: 'Gentle rain shower with soft splashes' },
-  { id: 'ocean', emoji: '🌊',  name: 'Ocean', desc: 'Rolling ocean waves with slow tide'     },
-  { id: 'wind',  emoji: '💨',  name: 'Wind',  desc: 'Breezy gusts through open air'          },
-  { id: 'cafe',  emoji: '☕',  name: 'Cafe',  desc: 'Warm coffee shop murmur'                },
-  { id: 'lofi',  emoji: '🎵',  name: 'Lo-fi', desc: 'Chill lo-fi beats with a mellow pad'    },
-  { id: 'fire',  emoji: '🔥',  name: 'Fire',  desc: 'Crackling campfire with deep warmth'     },
+  { id: 'rain',  emoji: '🌧',  name: 'Rain',  desc: 'Gentle rain shower with soft splashes', moods: ['focus', 'relaxing', 'sleep']       },
+  { id: 'ocean', emoji: '🌊',  name: 'Ocean', desc: 'Rolling ocean waves with slow tide',    moods: ['relaxing', 'sleep', 'creative']    },
+  { id: 'wind',  emoji: '💨',  name: 'Wind',  desc: 'Breezy gusts through open air',         moods: ['relaxing', 'sleep']                },
+  { id: 'cafe',  emoji: '☕',  name: 'Cafe',  desc: 'Warm coffee shop murmur',               moods: ['focus', 'creative', 'energetic']   },
+  { id: 'lofi',  emoji: '🎵',  name: 'Lo-fi', desc: 'Chill lo-fi beats with a mellow pad',   moods: ['focus', 'creative', 'relaxing']    },
+  { id: 'fire',  emoji: '🔥',  name: 'Fire',  desc: 'Crackling campfire with deep warmth',    moods: ['relaxing', 'sleep', 'focus']       },
 ];
+
+// Mood definitions — emoji + display name, in display order
+const MOODS = [
+  { id: 'focus',     emoji: '🎯', label: 'Focus'     },
+  { id: 'relaxing',  emoji: '🌿', label: 'Relaxing'  },
+  { id: 'creative',  emoji: '🎨', label: 'Creative'  },
+  { id: 'sleep',     emoji: '🌙', label: 'Sleep'     },
+  { id: 'energetic', emoji: '⚡', label: 'Energetic' },
+];
+
+// Preset mixes per mood — volumes keyed by sound id (0 = off)
+const MOOD_PRESETS = {
+  focus:     { rain: 0.6,  ocean: 0,    wind: 0,    cafe: 0.45, lofi: 0.5,  fire: 0    },
+  relaxing:  { rain: 0.5,  ocean: 0.55, wind: 0.3,  cafe: 0,    lofi: 0.35, fire: 0.5  },
+  creative:  { rain: 0,    ocean: 0.4,  wind: 0,    cafe: 0.55, lofi: 0.6,  fire: 0    },
+  sleep:     { rain: 0.55, ocean: 0.45, wind: 0.35, cafe: 0,    lofi: 0,    fire: 0.4  },
+  energetic: { rain: 0,    ocean: 0,    wind: 0,    cafe: 0.7,  lofi: 0.65, fire: 0    },
+};
 
 const STORAGE_KEY = 'wavelength_v1';
 
@@ -1040,7 +1125,115 @@ updateSkyGradient();
 // Re-evaluate every 60 s; the 90 s CSS transition handles smooth blending.
 setInterval(updateSkyGradient, 60_000);
 
+// ── Mood filtering ───────────────────────────────────────────────
+
+let activeMood = null;   // currently selected mood id, or null for "show all"
+
+function renderMoodBar() {
+  const bar = document.getElementById('moodBar');
+
+  MOODS.forEach(mood => {
+    const pill = document.createElement('button');
+    pill.className   = 'mood-pill';
+    pill.dataset.mood = mood.id;
+    pill.innerHTML = `<span class="pill-emoji">${mood.emoji}</span>${mood.label}`;
+    pill.addEventListener('click', () => toggleMoodFilter(mood.id));
+    bar.appendChild(pill);
+  });
+
+  // "Surprise me" button
+  const surprise = document.createElement('button');
+  surprise.className = 'mood-pill surprise-pill';
+  surprise.dataset.mood = 'surprise';
+  surprise.innerHTML = `<span class="pill-emoji">🎲</span>Surprise me`;
+  surprise.addEventListener('click', handleSurprise);
+  bar.appendChild(surprise);
+}
+
+function toggleMoodFilter(moodId) {
+  // Toggle off if same mood clicked again
+  if (activeMood === moodId) {
+    activeMood = null;
+  } else {
+    activeMood = moodId;
+  }
+  applyMoodFilter();
+}
+
+function applyMoodFilter() {
+  // Update pill states
+  document.querySelectorAll('.mood-pill').forEach(pill => {
+    const isSurprise = pill.dataset.mood === 'surprise';
+    pill.classList.toggle('active', !isSurprise && pill.dataset.mood === activeMood);
+  });
+
+  // Filter sound cards
+  const cards = document.querySelectorAll('.sound-card');
+  cards.forEach(card => {
+    const cfg = SOUNDS_CONFIG.find(s => s.id === card.dataset.id);
+    if (!cfg) return;
+
+    if (!activeMood || cfg.moods.includes(activeMood)) {
+      card.classList.remove('mood-hidden');
+    } else {
+      card.classList.add('mood-hidden');
+    }
+  });
+}
+
+function handleSurprise() {
+  initAudio();
+
+  // Pick a random mood
+  const mood = MOODS[Math.floor(Math.random() * MOODS.length)];
+  activeMood = mood.id;
+  applyMoodFilter();
+
+  // Briefly highlight the surprise pill, then switch to the mood pill
+  const surprisePill = document.querySelector('[data-mood="surprise"]');
+  surprisePill.classList.add('active');
+  setTimeout(() => surprisePill.classList.remove('active'), 400);
+
+  // Load the preset mix for this mood
+  const preset = MOOD_PRESETS[mood.id];
+  if (!preset) return;
+
+  // Stop all currently active sounds first
+  Object.keys(activeSounds).forEach(id => {
+    const card = document.querySelector(`.sound-card[data-id="${id}"]`);
+    if (card) {
+      activeSounds[id].stop();
+      delete activeSounds[id];
+      card.classList.remove('active');
+    }
+  });
+
+  // Start sounds from preset
+  SOUNDS_CONFIG.forEach(cfg => {
+    const vol = preset[cfg.id] || 0;
+    state.sounds[cfg.id].volume = vol;
+
+    const card = document.querySelector(`.sound-card[data-id="${cfg.id}"]`);
+    if (!card) return;
+
+    // Update slider
+    const slider = card.querySelector('.vol-slider');
+    if (slider) slider.value = vol;
+
+    // Start sound if volume > 0
+    if (vol > 0) {
+      const inst = starters[cfg.id]();
+      activeSounds[cfg.id] = inst;
+      card.classList.add('active');
+      inst.setVolume(vol);
+    }
+  });
+
+  saveState();
+}
+
 // ── Bootstrap ────────────────────────────────────────────────────
+renderMoodBar();
 renderSounds();
 renderEQ();
 
