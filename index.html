@@ -406,6 +406,27 @@
       border: 0;
     }
 
+    /* ── Visualizer ─────────────────────────────────────────── */
+    .visualizer-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      transition: border-color 0.25s, opacity 0.6s ease;
+    }
+    .visualizer-card.viz-idle {
+      opacity: 0.45;
+    }
+    #vizCanvas {
+      width: 100%;
+      height: 64px;
+      display: block;
+      border-radius: 6px;
+    }
+
     /* ── Footer ─────────────────────────────────────────────── */
     footer {
       text-align: center;
@@ -431,6 +452,12 @@
     <p class="section-label">Sounds</p>
     <div class="mood-bar" id="moodBar" role="toolbar" aria-label="Filter by mood"></div>
     <div class="sound-grid" id="soundGrid"></div>
+  </section>
+
+  <!-- ── Visualizer ──────────────────────────────────────────── -->
+  <section class="visualizer-card viz-idle" id="vizCard" aria-label="Audio visualizer">
+    <p class="section-label">Visualizer</p>
+    <canvas id="vizCanvas" aria-hidden="true"></canvas>
   </section>
 
   <!-- ── 3-Band EQ ───────────────────────────────────────────── -->
@@ -565,6 +592,7 @@ let mixBus      = null;
 let noiseBuffer = null;   // shared 4-second white-noise buffer, looped by ambient sources
 let snareBuf    = null;   // cached drum sample buffers — generated once at initAudio
 let hihatBuf    = null;
+let analyser    = null;   // AnalyserNode for visualizer — tapped off mixBus
 const eqFilters = {};     // { bass, mid, treble } → BiquadFilterNode, populated in initAudio
 
 // Per-sound active instances: id → { setVolume(v), stop() }
@@ -611,11 +639,20 @@ function initAudio() {
   limiter.attack.value    = 0.002;
   limiter.release.value   = 0.15;
 
+  // ── Analyser for visualizer (tapped off mixBus, zero cost when idle) ──
+  analyser = ctx.createAnalyser();
+  analyser.fftSize = 256;          // 128 frequency bins — we only read ~10
+  analyser.smoothingTimeConstant = 0.8;
+  mixBus.connect(analyser);        // parallel branch — doesn't alter signal
+
   // Connect: mixBus → bass → mid → treble → limiter → destination
   mixBus.connect(filterNodes[0]);
   filterNodes.forEach((f, i) => { if (filterNodes[i + 1]) f.connect(filterNodes[i + 1]); });
   filterNodes[filterNodes.length - 1].connect(limiter);
   limiter.connect(ctx.destination);
+
+  // Kick off visualizer loop now that analyser exists
+  startVisualizer();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -1230,6 +1267,100 @@ function handleSurprise() {
   });
 
   saveState();
+}
+
+// ── Visualizer ───────────────────────────────────────────────────
+//
+// Draws 10 vertical frequency bars on a <canvas>, coloured with a
+// cool-blue → warm-orange gradient that shifts with intensity.
+// The loop only runs a rAF when at least one sound is active; when
+// everything is silent it stops ticking to save CPU/battery.
+
+const VIZ_BAR_COUNT = 10;
+// Frequency-bin indices to sample (low → high, roughly logarithmic spacing).
+// fftSize 256 → 128 bins; bin spacing ≈ sampleRate/256 ≈ 172 Hz at 44.1 kHz.
+const VIZ_BINS = [1, 2, 4, 6, 10, 16, 24, 36, 52, 72];
+
+// Gradient stops: each bar gets its own colour interpolated from cool → warm.
+const VIZ_COLORS_LOW  = [
+  [100, 140, 230], [90, 155, 225], [80, 170, 215],
+  [90, 185, 195],  [120, 195, 165], [160, 200, 130],
+  [200, 195, 100], [225, 175, 80],  [240, 150, 65],
+  [250, 120, 55],
+];
+const VIZ_COLORS_HIGH = [
+  [130, 170, 255], [120, 185, 255], [110, 200, 245],
+  [120, 215, 225], [150, 225, 195], [190, 230, 160],
+  [230, 225, 130], [250, 205, 110], [255, 180, 90],
+  [255, 150, 75],
+];
+
+let vizRAF = null;  // requestAnimationFrame id
+
+function startVisualizer() {
+  if (vizRAF) return;  // already running
+  const canvas = document.getElementById('vizCanvas');
+  const cardEl = document.getElementById('vizCard');
+  if (!canvas || !analyser) return;
+  const c = canvas.getContext('2d');
+
+  function draw() {
+    vizRAF = requestAnimationFrame(draw);
+
+    // ── Check if any sound is active ──
+    const hasActive = Object.keys(activeSounds).length > 0;
+    cardEl.classList.toggle('viz-idle', !hasActive);
+    if (!hasActive) {
+      // Draw flat baseline bars when idle
+      drawBars(c, canvas, new Uint8Array(analyser.frequencyBinCount));
+      return;
+    }
+
+    const freqData = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(freqData);
+    drawBars(c, canvas, freqData);
+  }
+  draw();
+}
+
+function drawBars(c, canvas, freqData) {
+  // Handle high-DPI displays
+  const dpr   = window.devicePixelRatio || 1;
+  const rect  = canvas.getBoundingClientRect();
+  const w     = rect.width;
+  const h     = rect.height;
+  if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+    canvas.width  = w * dpr;
+    canvas.height = h * dpr;
+    c.scale(dpr, dpr);
+  }
+  c.clearRect(0, 0, w, h);
+
+  const barGap    = 4;
+  const barWidth  = (w - barGap * (VIZ_BAR_COUNT - 1)) / VIZ_BAR_COUNT;
+  const minHeight = 3;
+  const radius    = Math.min(barWidth / 2, 4);
+
+  for (let i = 0; i < VIZ_BAR_COUNT; i++) {
+    const raw = freqData[VIZ_BINS[i]] || 0;  // 0-255
+    const norm = raw / 255;
+    const barH = minHeight + norm * (h - minHeight);
+
+    const x = i * (barWidth + barGap);
+    const y = h - barH;
+
+    // Interpolate colour: low intensity → VIZ_COLORS_LOW, high → VIZ_COLORS_HIGH
+    const lo = VIZ_COLORS_LOW[i];
+    const hi = VIZ_COLORS_HIGH[i];
+    const r  = Math.round(lo[0] + (hi[0] - lo[0]) * norm);
+    const g  = Math.round(lo[1] + (hi[1] - lo[1]) * norm);
+    const b  = Math.round(lo[2] + (hi[2] - lo[2]) * norm);
+
+    c.fillStyle = `rgb(${r},${g},${b})`;
+    c.beginPath();
+    c.roundRect(x, y, barWidth, barH, [radius, radius, 0, 0]);
+    c.fill();
+  }
 }
 
 // ── Bootstrap ────────────────────────────────────────────────────
