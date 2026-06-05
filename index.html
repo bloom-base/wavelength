@@ -129,7 +129,7 @@
     .sound-card.active::after {
       content: '';
       position: absolute;
-      top: 10px; right: 10px;
+      top: 10px; left: 10px;
       width: 7px; height: 7px;
       background: var(--accent);
       border-radius: 50%;
@@ -392,7 +392,42 @@
       border-style: solid;
     }
 
+    /* ── Favorite star button ─────────────────────────────────── */
+    .fav-btn {
+      position: absolute;
+      top: 0.375rem;
+      right: 0.375rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0.25rem;
+      font-size: 0;
+      color: var(--muted);
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s, transform 0.15s;
+      z-index: 2;
+    }
+    .sound-card:hover .fav-btn,
+    .fav-btn.starred {
+      opacity: 1;
+    }
+    .fav-btn.starred {
+      color: #f59e0b;
+    }
+    .fav-btn:active {
+      transform: scale(1.25);
+    }
+    .fav-btn svg {
+      width: 15px;
+      height: 15px;
+      display: block;
+    }
+    @media (hover: none) {
+      .fav-btn { opacity: 1; }
+    }
+
     /* Filtering animation for sound cards */
+    .sound-card.fav-hidden,
     .sound-card.mood-hidden {
       opacity: 0;
       transform: scale(0.92);
@@ -556,7 +591,7 @@ const EQ_BANDS = [
 function defaultState() {
   return {
     eq:     Object.fromEntries(EQ_BANDS.map(b => [b.id, 0])),
-    sounds: Object.fromEntries(SOUNDS_CONFIG.map(s => [s.id, { volume: 0.7 }])),
+    sounds: Object.fromEntries(SOUNDS_CONFIG.map(s => [s.id, { volume: 0.7, fav: false }])),
   };
 }
 
@@ -566,9 +601,14 @@ function loadState() {
     if (raw) {
       const p = JSON.parse(raw);
       const d = defaultState();
+      // Deep-merge each sound entry so new properties (e.g. fav) get defaults
+      const sounds = {};
+      for (const id of Object.keys(d.sounds)) {
+        sounds[id] = { ...d.sounds[id], ...(p.sounds && p.sounds[id]) };
+      }
       return {
         eq:     { ...d.eq,     ...p.eq },
-        sounds: { ...d.sounds, ...p.sounds },
+        sounds,
       };
     }
   } catch (_) {}
@@ -998,6 +1038,36 @@ function setVolume(id, vol) {
   if (activeSounds[id]) activeSounds[id].setVolume(vol);
 }
 
+// ── Favorites ────────────────────────────────────────────────────
+
+let showFavoritesOnly = false;  // "Show Favorites Only" filter state
+
+function toggleFavorite(id, btnEl) {
+  const isFav = !state.sounds[id].fav;
+  state.sounds[id].fav = isFav;
+  saveState();
+
+  // Update star visual
+  btnEl.classList.toggle('starred', isFav);
+  const svg = btnEl.querySelector('svg');
+  svg.setAttribute('fill', isFav ? 'currentColor' : 'none');
+
+  // Re-apply filter in case favorites-only mode is active
+  if (showFavoritesOnly) applyFavoritesFilter();
+}
+
+function applyFavoritesFilter() {
+  const cards = document.querySelectorAll('.sound-card');
+  cards.forEach(card => {
+    const id = card.dataset.id;
+    if (showFavoritesOnly && !state.sounds[id].fav) {
+      card.classList.add('fav-hidden');
+    } else {
+      card.classList.remove('fav-hidden');
+    }
+  });
+}
+
 // ── EQ management ────────────────────────────────────────────────
 
 function formatDB(val) {
@@ -1029,6 +1099,13 @@ function renderSounds() {
     card.dataset.sound   = cfg.name;
     card.dataset.tooltip = cfg.desc;
     card.innerHTML   = `
+      <button class="fav-btn${s.fav ? ' starred' : ''}" aria-label="Favorite ${cfg.name}"
+              data-id="${cfg.id}">
+        <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+             stroke-linejoin="round" fill="${s.fav ? 'currentColor' : 'none'}">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+        </svg>
+      </button>
       <span class="emoji">${cfg.emoji}</span>
       <div class="sound-name">${cfg.name}</div>
       <div class="vol-row">
@@ -1044,6 +1121,13 @@ function renderSounds() {
                data-id="${cfg.id}">
       </div>
     `;
+
+    // Favorite star toggle
+    const favBtn = card.querySelector('.fav-btn');
+    favBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      toggleFavorite(cfg.id, favBtn);
+    });
 
     // Toggle on card click (skip if user clicked the slider itself)
     card.addEventListener('click', e => {
@@ -1178,6 +1262,19 @@ function renderMoodBar() {
     bar.appendChild(pill);
   });
 
+  // "Favorites" filter toggle
+  const favPill = document.createElement('button');
+  favPill.className = 'mood-pill';
+  favPill.id = 'favFilterPill';
+  favPill.dataset.mood = 'favorites';
+  favPill.innerHTML = `<span class="pill-emoji">⭐</span>Favorites`;
+  favPill.addEventListener('click', () => {
+    showFavoritesOnly = !showFavoritesOnly;
+    favPill.classList.toggle('active', showFavoritesOnly);
+    applyFavoritesFilter();
+  });
+  bar.appendChild(favPill);
+
   // "Surprise me" button
   const surprise = document.createElement('button');
   surprise.className = 'mood-pill surprise-pill';
@@ -1198,10 +1295,11 @@ function toggleMoodFilter(moodId) {
 }
 
 function applyMoodFilter() {
-  // Update pill states
+  // Update pill states (skip favorites pill — it has its own toggle)
   document.querySelectorAll('.mood-pill').forEach(pill => {
-    const isSurprise = pill.dataset.mood === 'surprise';
-    pill.classList.toggle('active', !isSurprise && pill.dataset.mood === activeMood);
+    const m = pill.dataset.mood;
+    if (m === 'surprise' || m === 'favorites') return;
+    pill.classList.toggle('active', m === activeMood);
   });
 
   // Filter sound cards
