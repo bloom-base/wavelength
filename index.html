@@ -445,6 +445,19 @@
       border-style: solid;
     }
 
+    /* ── Crossfade busy state ─────────────────────────────────── */
+    .mood-pill.crossfade-busy {
+      pointer-events: none;
+      opacity: 0.55;
+    }
+    .mood-pill.active.crossfade-busy {
+      animation: crossfade-pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes crossfade-pulse {
+      0%, 100% { opacity: 0.55; }
+      50%      { opacity: 0.9; }
+    }
+
     /* ── Favorite star button ─────────────────────────────────── */
     .fav-btn {
       position: absolute;
@@ -1095,6 +1108,97 @@ function setVolume(id, vol) {
   if (activeSounds[id]) activeSounds[id].setVolume(vol);
 }
 
+// ── Crossfade transitions ────────────────────────────────────────
+
+let _crossfading = false;          // prevent overlapping crossfades
+const CROSSFADE_MS   = 2500;       // total duration per fade
+const CROSSFADE_STEPS = 50;        // animation frames (≈ 50 ms each)
+
+/**
+ * Smoothly crossfade from whatever is currently playing to the given
+ * mood preset.  Sounds common to both old and new mixes are kept
+ * alive and their volumes are interpolated; sounds exclusive to the
+ * old mix fade out and stop, new sounds start silent and fade in.
+ */
+function crossfadeToPreset(moodId) {
+  if (_crossfading) return;
+
+  const preset = MOOD_PRESETS[moodId];
+  if (!preset) return;
+
+  initAudio();
+  _crossfading = true;
+
+  // Disable mood pills during crossfade
+  document.querySelectorAll('.mood-pill').forEach(p => p.classList.add('crossfade-busy'));
+
+  const stepMs = CROSSFADE_MS / CROSSFADE_STEPS;
+
+  // Build per-sound transition plan
+  const transitions = {};
+  SOUNDS_CONFIG.forEach(cfg => {
+    const id        = cfg.id;
+    const isActive  = !!activeSounds[id];
+    const targetVol = preset[id] || 0;
+    const currentVol = isActive ? state.sounds[id].volume : 0;
+
+    transitions[id] = { currentVol, targetVol };
+
+    // Spin up new sounds at volume 0 so they're ready for fade-in
+    if (!isActive && targetVol > 0) {
+      const card = document.querySelector(`.sound-card[data-id="${id}"]`);
+      const inst = starters[id]();
+      activeSounds[id] = inst;
+      if (card) card.classList.add('active');
+      inst.setVolume(0);
+    }
+
+    // Commit target volume to state immediately (sliders + persistence)
+    state.sounds[id].volume = targetVol;
+  });
+
+  let step = 0;
+  const fade = setInterval(() => {
+    step++;
+    // Ease-in-out curve for polished feel
+    const t    = step / CROSSFADE_STEPS;
+    const ease = t < 0.5
+      ? 2 * t * t
+      : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+    Object.entries(transitions).forEach(([id, tr]) => {
+      if (!activeSounds[id]) return;
+      const vol = tr.currentVol + (tr.targetVol - tr.currentVol) * ease;
+      activeSounds[id].setVolume(Math.max(0, vol));
+
+      // Animate slider thumb to match
+      const slider = document.querySelector(`.sound-card[data-id="${id}"] .vol-slider`);
+      if (slider) slider.value = vol;
+    });
+
+    if (step >= CROSSFADE_STEPS) {
+      clearInterval(fade);
+
+      // Tear down sounds that faded to zero
+      Object.entries(transitions).forEach(([id, tr]) => {
+        if (tr.targetVol === 0 && activeSounds[id]) {
+          activeSounds[id].stop();
+          delete activeSounds[id];
+          const card = document.querySelector(`.sound-card[data-id="${id}"]`);
+          if (card) card.classList.remove('active');
+        }
+        // Ensure final slider value is exact
+        const slider = document.querySelector(`.sound-card[data-id="${id}"] .vol-slider`);
+        if (slider) slider.value = tr.targetVol;
+      });
+
+      _crossfading = false;
+      document.querySelectorAll('.mood-pill').forEach(p => p.classList.remove('crossfade-busy'));
+      saveState();
+    }
+  }, stepMs);
+}
+
 // ── Favorites ────────────────────────────────────────────────────
 
 let showFavoritesOnly = false;  // "Show Favorites Only" filter state
@@ -1383,13 +1487,20 @@ function renderMoodBar() {
 }
 
 function toggleMoodFilter(moodId) {
+  if (_crossfading) return;
+
   // Toggle off if same mood clicked again
   if (activeMood === moodId) {
     activeMood = null;
-  } else {
-    activeMood = moodId;
+    applyMoodFilter();
+    return;
   }
+
+  activeMood = moodId;
   applyMoodFilter();
+
+  // Also crossfade to this mood's preset mix
+  crossfadeToPreset(moodId);
 }
 
 function applyMoodFilter() {
@@ -1415,7 +1526,7 @@ function applyMoodFilter() {
 }
 
 function handleSurprise() {
-  initAudio();
+  if (_crossfading) return;
 
   // Pick a random mood
   const mood = MOODS[Math.floor(Math.random() * MOODS.length)];
@@ -1427,42 +1538,7 @@ function handleSurprise() {
   surprisePill.classList.add('active');
   setTimeout(() => surprisePill.classList.remove('active'), 400);
 
-  // Load the preset mix for this mood
-  const preset = MOOD_PRESETS[mood.id];
-  if (!preset) return;
-
-  // Stop all currently active sounds first
-  Object.keys(activeSounds).forEach(id => {
-    const card = document.querySelector(`.sound-card[data-id="${id}"]`);
-    if (card) {
-      activeSounds[id].stop();
-      delete activeSounds[id];
-      card.classList.remove('active');
-    }
-  });
-
-  // Start sounds from preset
-  SOUNDS_CONFIG.forEach(cfg => {
-    const vol = preset[cfg.id] || 0;
-    state.sounds[cfg.id].volume = vol;
-
-    const card = document.querySelector(`.sound-card[data-id="${cfg.id}"]`);
-    if (!card) return;
-
-    // Update slider
-    const slider = card.querySelector('.vol-slider');
-    if (slider) slider.value = vol;
-
-    // Start sound if volume > 0
-    if (vol > 0) {
-      const inst = starters[cfg.id]();
-      activeSounds[cfg.id] = inst;
-      card.classList.add('active');
-      inst.setVolume(vol);
-    }
-  });
-
-  saveState();
+  crossfadeToPreset(mood.id);
 }
 
 // ── Visualizer ───────────────────────────────────────────────────
