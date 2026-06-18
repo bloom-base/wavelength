@@ -507,6 +507,43 @@
       border: 0;
     }
 
+    /* ── Intensity meter ──────────────────────────────────────── */
+    .meter-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      transition: border-color 0.25s, opacity 0.6s ease;
+    }
+    .meter-card.meter-idle { opacity: 0.45; }
+    .meter-row {
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+    }
+    .meter-track {
+      flex: 1;
+      height: 10px;
+      background: var(--border);
+      border-radius: 5px;
+      overflow: hidden;
+      position: relative;
+    }
+    .meter-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 5px;
+      transition: width 0.06s linear;
+    }
+    .meter-db {
+      font-size: 0.7rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: var(--accent);
+      min-width: 48px;
+      text-align: right;
+    }
+
     /* ── Visualizer ─────────────────────────────────────────── */
     .visualizer-card {
       background: var(--surface);
@@ -563,6 +600,15 @@
   <section class="visualizer-card viz-idle" id="vizCard" aria-label="Audio visualizer">
     <p class="section-label">Visualizer</p>
     <canvas id="vizCanvas" aria-hidden="true"></canvas>
+  </section>
+
+  <!-- ── Intensity Meter ────────────────────────────────────── -->
+  <section class="meter-card meter-idle" id="meterCard" aria-label="Output level meter">
+    <p class="section-label">Level</p>
+    <div class="meter-row">
+      <div class="meter-track"><div class="meter-fill" id="meterFill"></div></div>
+      <span class="meter-db" id="meterDb">-∞ dB</span>
+    </div>
   </section>
 
   <!-- ── 3-Band EQ ───────────────────────────────────────────── -->
@@ -761,8 +807,9 @@ function initAudio() {
   filterNodes[filterNodes.length - 1].connect(limiter);
   limiter.connect(ctx.destination);
 
-  // Kick off visualizer loop now that analyser exists
+  // Kick off visualizer & meter loops now that analyser exists
   startVisualizer();
+  startMeter();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -1633,6 +1680,45 @@ function drawBars(c, canvas, freqData) {
     c.roundRect(x, y, barWidth, barH, [radius, radius, 0, 0]);
     c.fill();
   }
+}
+
+// ── Intensity meter ──────────────────────────────────────────────
+let meterRAF = null;
+
+function startMeter() {
+  if (meterRAF) return;
+  const fillEl = document.getElementById('meterFill');
+  const dbEl   = document.getElementById('meterDb');
+  const cardEl = document.getElementById('meterCard');
+  if (!fillEl || !analyser) return;
+
+  const timeBuf = new Float32Array(analyser.fftSize);
+
+  function tick() {
+    meterRAF = requestAnimationFrame(tick);
+    const hasActive = Object.keys(activeSounds).length > 0;
+    cardEl.classList.toggle('meter-idle', !hasActive);
+
+    if (!hasActive) {
+      fillEl.style.width = '0%';
+      dbEl.textContent = '-∞ dB';
+      return;
+    }
+
+    analyser.getFloatTimeDomainData(timeBuf);
+    let sum = 0;
+    for (let i = 0; i < timeBuf.length; i++) sum += timeBuf[i] * timeBuf[i];
+    const rms = Math.sqrt(sum / timeBuf.length);
+    const db  = rms > 0 ? 20 * Math.log10(rms) : -100;
+
+    // Map dB to percentage: -60 dB → 0%, 0 dB → 100%
+    const pct = Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
+    fillEl.style.width = pct + '%';
+    // Color zones: green < 60%, yellow 60-85%, red > 85%
+    fillEl.style.background = pct < 60 ? '#22c55e' : pct < 85 ? '#eab308' : '#ef4444';
+    dbEl.textContent = db > -60 ? db.toFixed(1) + ' dB' : '-∞ dB';
+  }
+  tick();
 }
 
 // ── Dark mode toggle ─────────────────────────────────────────────
